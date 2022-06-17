@@ -10,6 +10,6 @@
     "emitDecoratorMetadata": true,
     "esModuleInterop": true
   },
-  "include": ["index.ts", "lib/**/*.ts"],
-  "exclude": ["index.d.ts", "lib/**/*.d.ts"]
+  "include": ["index.ts", "test/**/*.ts", "lib/**/*.ts"],
+  "exclude": ["index.d.ts", "test/**/*.d.ts", "lib/**/*.d.ts"]
 }

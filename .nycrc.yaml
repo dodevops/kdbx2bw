@@ -1,0 +1,11 @@
+exclude:
+  - "node_modules/**"
+  - "coverage/**"
+  - "**/*.d.ts"
+  - "test/**"
+reporter:
+  - "text-summary"
+  - "html"
+extension:
+  - ".ts"
+  - ".tsx"

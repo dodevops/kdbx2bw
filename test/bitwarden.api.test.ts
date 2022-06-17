@@ -62,9 +62,9 @@ describe('The bitwarden API', () => {
     mock.onDelete('/object/item/1234').reply(200)
     const bitwarden = new Bitwarden('', 'testpassword', [], false)
     expect(await bitwarden.createItem(item)).to.eq('1234')
+    expect(mock.history.delete).to.have.lengthOf(1)
     expect(mock.history.get).to.have.lengthOf(1)
     expect(mock.history.post).to.have.lengthOf(1)
-    expect(mock.history.delete).to.have.lengthOf(1)
   })
 
   it('should support dryrun', async () => {
@@ -74,6 +74,7 @@ describe('The bitwarden API', () => {
     await bitwarden.unlock()
     await bitwarden.createCollections('1234', ['testnewcollection', 'testnewcollection2'])
     await bitwarden.createItem(item)
+    await bitwarden.findItem('1234', '123', 'nothing')
     expect(mock.history.get).to.have.lengthOf(0)
     expect(mock.history.post).to.have.lengthOf(0)
     expect(mock.history.delete).to.have.lengthOf(0)
@@ -85,6 +86,39 @@ describe('The bitwarden API', () => {
     const attachment = new FormData.default()
     attachment.append('file', Buffer.from('test'))
     await bitwarden.addAttachment('1234', attachment)
+    expect(mock.history.post).to.have.lengthOf(1)
+  })
+
+  it('should support default group ids', async () => {
+    mockCollections(mock)
+    mock
+      .onPost('/object/org-collection?organizationid=1234', {
+        organizationId: '1234',
+        name: 'testnewcollection',
+        externalId: null,
+        groups: [
+          {
+            id: '1234',
+            readOnly: false,
+            hidePasswords: false,
+          },
+          {
+            id: '2345',
+            readOnly: false,
+            hidePasswords: false,
+          },
+        ],
+      })
+      .reply(200, {
+        success: true,
+        data: {
+          name: 'testnewcollection',
+          id: '2345',
+        },
+      })
+    const bitwarden = new Bitwarden('', 'testpassword', ['1234', '2345'], false)
+    expect(await bitwarden.createCollection('1234', 'testnewcollection')).to.eq('2345')
+    expect(mock.history.get).to.have.lengthOf(1)
     expect(mock.history.post).to.have.lengthOf(1)
   })
 })

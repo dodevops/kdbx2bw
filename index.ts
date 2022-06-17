@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* istanbul ignore file */
 
 import * as Path from 'path'
 import { CLI, Shim } from 'clime'

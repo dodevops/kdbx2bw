@@ -39,10 +39,10 @@ export class Keepass {
       passwordList.push(...this._loadPasswords(subGroup, `${prefix}/${subGroup.name}`))
     }
     for (const entry of group.entries) {
-      passwordList.push({
-        collectionName: prefix,
-        entry: entry,
-      })
+      const passwordEntry = new PasswordEntry()
+      passwordEntry.entry = entry
+      passwordEntry.collectionName = prefix
+      passwordList.push(passwordEntry)
     }
     return passwordList
   }

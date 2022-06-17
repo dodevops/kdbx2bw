@@ -1,6 +1,6 @@
 import { KdbxEntry } from 'kdbxweb'
 
-export abstract class PasswordEntry {
+export class PasswordEntry {
   public collectionName: string
   public entry: KdbxEntry
 }

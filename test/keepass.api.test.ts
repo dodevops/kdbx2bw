@@ -18,7 +18,7 @@ describe('The Keepass-API', () => {
     expect((passwords[1].entry.fields.get('Password') as ProtectedValue).getText()).to.eq('testpassword')
     expect((passwords[2].entry.fields.get('Password') as ProtectedValue).getText()).to.eq('testsubpassword')
   })
-  it('supports attachments', async() => {
+  it('supports attachments', async () => {
     const keepass = new Keepass(path.join(__dirname, 'resources', 'testdb.kdbx'), 'masterpassword')
     const passwords = await keepass.getPasswords()
     const data = await fs.readFile(path.join(__dirname, 'resources', 'KeePass_icon.svg'))
