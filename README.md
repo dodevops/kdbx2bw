@@ -2,10 +2,6 @@
 
 ## Introduction
 
-Tell something about your typescript module.
+This tool migrates a keepass database to one or several Bitwarden collections of an organization.
 
-## Building
-
-To test and build this package, simply use grunt:
-
-    grunt test
+(tbd)
