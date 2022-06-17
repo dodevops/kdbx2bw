@@ -2,9 +2,24 @@ import { Kdbx, KdbxCredentials, KdbxGroup, ProtectedValue } from 'kdbxweb'
 import { promises as fs } from 'fs'
 import { PasswordEntry } from '../models/password.entry'
 
+/**
+ * An abstractor of the keepass api
+ */
 export class Keepass {
+  /**
+   * The keepass database
+   * @private
+   */
   private _db: Kdbx = null
+  /**
+   * The file to load
+   * @private
+   */
   private readonly _file: string
+  /**
+   * The passphrase of the database
+   * @private
+   */
   private readonly _passphrase: string
 
   constructor(file: string, passphrase: string) {

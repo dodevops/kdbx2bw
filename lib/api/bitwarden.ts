@@ -3,21 +3,55 @@ import { ItemTemplate } from '../models/bitwarden/ItemTemplate'
 import { getLogger, Logger } from 'loglevel'
 import * as FormData from 'form-data'
 
+/**
+ * Bitwarden API abstraction. Requires a local bitwarden Vault Management API ran by `bw serve`
+ *
+ * @see https://bitwarden.com/help/vault-management-api/
+ * @see https://bitwarden.com/help/cli/
+ */
 export class Bitwarden {
+  /**
+   * The Bitwarden API base URL
+   * @private
+   */
   private readonly _apiBaseUrl: string
+  /**
+   * The unlock password for the vault
+   * @private
+   */
   private readonly _password: string
+  /**
+   * The default ids of the groups to add to each collection
+   * @private
+   */
   private _defaultGroupIds: Array<string>
+  /**
+   * A map of the loaded collections
+   * @private
+   */
   private _collectionMap: Map<string, string> = new Map()
+  /**
+   * Whether to not actually run the requests
+   * @private
+   */
   private readonly _dryrun: boolean
+  /**
+   * A logger
+   * @private
+   */
   private _log: Logger = getLogger('Bitwarden')
 
-  constructor(apiBaseUrl: string, password: string, defaultGroupIds: Array<string> = [], dryrun: boolean = true) {
+  constructor(apiBaseUrl: string, password: string, defaultGroupIds: Array<string> = [], dryrun = true) {
     this._apiBaseUrl = apiBaseUrl
     this._password = password
     this._defaultGroupIds = defaultGroupIds
     this._dryrun = dryrun
   }
 
+  /**
+   * Fetch all collections and store it locally to speed up collection batch creation
+   * @param organizationId the id of the organization
+   */
   async _fetchCollections(organizationId: string) {
     this._log.debug('Fetching all collections')
     const url = `${this._apiBaseUrl}/list/object/org-collections?organizationid=${organizationId}`
@@ -32,6 +66,9 @@ export class Bitwarden {
     }
   }
 
+  /**
+   * Unlock the bitwarden vault
+   */
   async unlock() {
     this._log.info('Unlocking bitwarden')
     if (!this._dryrun) {
@@ -41,6 +78,13 @@ export class Bitwarden {
     }
   }
 
+  /**
+   * Create a new collection on the organization
+   * @param organizationId The id of the organization
+   * @param collectionPath The name and path of the collection. Bitwarden supports "sub-collections" by separating
+   *  paths using "/"
+   * @return the id of the new collection
+   */
   async createCollection(organizationId: string, collectionPath: string): Promise<string> {
     if (this._collectionMap.size == 0) {
       await this._fetchCollections(organizationId)
@@ -71,6 +115,12 @@ export class Bitwarden {
     return this._collectionMap.get(collectionPath)
   }
 
+  /**
+   * Batch-Create collections
+   * @param organizationId The id of the organization
+   * @param collectionPaths A list of collection paths
+   * @return a map of collectionPath => id of the collection
+   */
   async createCollections(organizationId: string, collectionPaths: Array<string>): Promise<Map<string, string>> {
     this._log.debug(`Creating the following collections for organization id ${organizationId}:\n${JSON.stringify(collectionPaths)}`)
     const retMap = new Map<string, string>()
@@ -80,7 +130,14 @@ export class Bitwarden {
     return retMap
   }
 
-  async findItem(organizationId: string, collectionId: string, search: string) {
+  /**
+   * Find an item (aka Password) in the bitwarden collection
+   * @param organizationId the id of the organization
+   * @param collectionId the id of the collection to search in
+   * @param search the search string
+   * @return the found items
+   */
+  async findItem(organizationId: string, collectionId: string, search: string): Promise<Array<Map<string, string>>> {
     if (this._dryrun) {
       return []
     }
@@ -94,6 +151,11 @@ export class Bitwarden {
     return response.data['data']['data']
   }
 
+  /**
+   * Create a new item based on the given item template
+   * @param itemTemplate the filled-out item template
+   * @return the id of the new item
+   */
   async createItem(itemTemplate: ItemTemplate): Promise<string> {
     this._log.info(`Creating item ${itemTemplate.name}`)
     if (this._dryrun) {
@@ -113,6 +175,10 @@ export class Bitwarden {
     return createResponse.data['data']['id']
   }
 
+  /**
+   * Delete the given item
+   * @param itemId the id of the item to delete
+   */
   async deleteItem(itemId: string) {
     this._log.debug(`Deleting item ${itemId}`)
     if (!this._dryrun) {
@@ -120,6 +186,11 @@ export class Bitwarden {
     }
   }
 
+  /**
+   * Add an attachment to an item
+   * @param itemId the id of the item to add the attachment to
+   * @param attachmentData the binary data in a FormData (field: file) object
+   */
   async addAttachment(itemId: string, attachmentData: FormData) {
     this._log.info(`Adding attachment to item ${itemId}`)
     if (!this._dryrun) {

@@ -7,9 +7,24 @@ import * as FormData from 'form-data'
 import { Field } from '../models/bitwarden/Field'
 import { ItemLogin } from '../models/bitwarden/ItemLogin'
 
+/**
+ * The migration API that migrates a keepass database to bitwarden
+ */
 export class Migration {
+  /**
+   * The organization id
+   * @private
+   */
   private readonly _organizationId: string
+  /**
+   * A Keepass API reference
+   * @private
+   */
   private _keepass: Keepass
+  /**
+   * A bitwarden API reference
+   * @private
+   */
   private _bitwarden: Bitwarden
 
   constructor(organizationId: string, keepass: Keepass, bitwarden: Bitwarden) {
@@ -18,6 +33,9 @@ export class Migration {
     this._bitwarden = bitwarden
   }
 
+  /**
+   * Migrate the keepass database to bitwarden
+   */
   public async migrate() {
     const passwords = await this._keepass.getPasswords()
     const collectionPaths = [...new Set(passwords.map((entry) => entry.collectionName).sort())]
@@ -32,6 +50,13 @@ export class Migration {
     }
   }
 
+  /**
+   * Convert a Keepass entry to a bitwarden item
+   * @param organizationId the id of the organization
+   * @param collectionId the id of the collection
+   * @param password the password to convert
+   * @return the bitwarden item
+   */
   public convertToBitwarden(organizationId: string, collectionId: string, password: KdbxEntry): ItemTemplate {
     const returnItem = new ItemTemplate()
     returnItem.organizationId = organizationId
@@ -81,6 +106,11 @@ export class Migration {
     return returnItem
   }
 
+  /**
+   * Get the attachments of the given keepass entry as an array of FormData objects
+   * @param password The keeepass entry
+   * @return An array of FormData attachment binaries
+   */
   public getAttachments(password: KdbxEntry): Array<FormData> {
     const attachments = []
     for (let binary of password.binaries.values()) {
@@ -100,6 +130,12 @@ export class Migration {
     return attachments
   }
 
+  /**
+   * Tool method to get a string value from a field that's either protected or not
+   * @param text The field value
+   * @return the (possibly decrypted) value
+   * @private
+   */
   private _getText(text: ProtectedValue | string): string {
     if (typeof text === 'string') {
       return text as string
