@@ -8,6 +8,9 @@ import * as Path from 'path'
 
 class MandatoryValueFromEnvValidator implements Validator<string> {
   public validate(value: string, context: ValidationContext) {
+    if ('KDBX2BW_HELP' in process.env) {
+      return
+    }
     const envKey = constantCase(context.name)
     if (!value && !(envKey in process.env)) {
       throw new ExpectedError(`${context.name} is required, either as parameter or as environment variable ${envKey}`)
@@ -56,21 +59,21 @@ class MigrationOpts extends Options {
 
   @option({
     flag: 'd',
-    description: 'Only simulate migration',
+    description: 'Only simulate migration (DRYRUN)',
     default: false,
   })
   dryrun: boolean
 
   @option({
     flag: 'g',
-    description: 'Bitwarden Group IDs to add to each created collections during migration',
+    description: 'Bitwarden Group IDs to add to each created collections during migration (DEFAULT_GROUP_IDS)',
     default: [],
   })
   defaultGroupIds: Array<string>
 
   @option({
     flag: 'o',
-    description: 'Bitwarden Organization ID',
+    description: 'Bitwarden Organization ID (BITWARDEN_ORGANIZATION_ID)',
     validator: new MandatoryValueFromEnvValidator(),
     default: '',
   })
@@ -78,14 +81,14 @@ class MigrationOpts extends Options {
 
   @option({
     flag: 'r',
-    description: 'Rewrite the created Bitwarden collection paths using Regexp:replacement',
+    description: 'Rewrite the created Bitwarden collection paths using Regexp:replacement (BITWARDEN_PATH_REWRITE)',
     default: [],
   })
   bitwardenPathRewrite: Array<string>
 
   @option({
     flag: 'l',
-    description: 'Loglevel to set (trace, debug, info, warning, error)',
+    description: 'Loglevel to set (trace, debug, info, warning, error) (LOGLEVEL)',
     default: 'error',
   })
   loglevel: string
