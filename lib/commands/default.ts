@@ -1,5 +1,10 @@
 import { command, Command, ExpectedError, metadata, option, Options, ValidationContext, Validator } from 'clime'
 import { constantCase } from 'case-anything'
+import { Bitwarden } from '../api/bitwarden'
+import { Migration } from '../api/migration'
+import { Keepass } from '../api/keepass'
+import { LogLevelDesc, setLevel } from 'loglevel'
+import * as Path from 'path'
 
 class MandatoryValueFromEnvValidator implements Validator<string> {
   public validate(value: string, context: ValidationContext) {
@@ -21,7 +26,7 @@ class MigrationOpts extends Options {
   @option({
     flag: 'P',
     description: 'The bitwarden REST API port started with bw serve (BITWARDEN_PORT)',
-    default: 8007,
+    default: 8087,
   })
   bitwardenPort: number
 
@@ -48,6 +53,42 @@ class MigrationOpts extends Options {
     default: '',
   })
   keepassFile: string
+
+  @option({
+    flag: 'd',
+    description: 'Only simulate migration',
+    default: false,
+  })
+  dryrun: boolean
+
+  @option({
+    flag: 'g',
+    description: 'Bitwarden Group IDs to add to each created collections during migration',
+    default: [],
+  })
+  defaultGroupIds: Array<string>
+
+  @option({
+    flag: 'o',
+    description: 'Bitwarden Organization ID',
+    validator: new MandatoryValueFromEnvValidator(),
+    default: '',
+  })
+  bitwardenOrganizationId: string
+
+  @option({
+    flag: 'r',
+    description: 'Rewrite the created Bitwarden collection paths using Regexp:replacement',
+    default: [],
+  })
+  bitwardenPathRewrite: Array<string>
+
+  @option({
+    flag: 'l',
+    description: 'Loglevel to set (trace, debug, info, warning, error)',
+    default: 'error',
+  })
+  loglevel: string
 }
 
 @command({
@@ -55,12 +96,59 @@ class MigrationOpts extends Options {
 })
 export default class extends Command {
   @metadata
-  execute(options: MigrationOpts) {
-    for (const optionKey in Object.keys(options)) {
+  async execute(options: MigrationOpts) {
+    for (const optionKey of Object.keys(options)) {
       const envKey = constantCase(optionKey)
       if (envKey in process.env) {
-        options[optionKey] = process.env[envKey]
+        if (typeof options[optionKey] == 'boolean') {
+          options[optionKey] = process.env[envKey].toLowerCase() == 'true'
+        } else if (typeof options[optionKey] == 'object') {
+          options[optionKey] = process.env[envKey].split(',')
+        } else {
+          options[optionKey] = process.env[envKey]
+        }
       }
+    }
+
+    setLevel(options.loglevel as LogLevelDesc)
+
+    const bitwardenApi = new Bitwarden(
+      `http://${options.bitwardenHost}:${options.bitwardenPort}`,
+      options.bitwardenPassword,
+      options.defaultGroupIds,
+      options.dryrun
+    )
+
+    const keepassApi = new Keepass(options.keepassFile, options.keepassPassphrase)
+
+    await bitwardenApi.unlock()
+
+    const pathRewrites: Array<PathRewrite> = options.bitwardenPathRewrite.map((rewriteOption) => {
+      return {
+        regex: new RegExp(rewriteOption.split(':')[0]),
+        replace: rewriteOption.split(':')[1],
+      }
+    })
+
+    try {
+      await new Migration(options.bitwardenOrganizationId, keepassApi, bitwardenApi, pathRewrites).migrate()
+    } catch (error) {
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        console.log(error.response.data)
+        console.log(error.response.status)
+        console.log(error.response.headers)
+      } else if (error.request) {
+        // The request was made but no response was received
+        // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
+        // http.ClientRequest in node.js
+        console.log(error.request)
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        console.log('Error', error.message)
+      }
+      console.log(error.config)
     }
   }
 }

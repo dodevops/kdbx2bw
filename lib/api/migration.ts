@@ -3,9 +3,10 @@ import { Keepass } from './keepass'
 import { Bitwarden } from './bitwarden'
 import { ItemTemplate } from '../models/bitwarden/ItemTemplate'
 import { Uri } from '../models/bitwarden/Uri'
-import * as FormData from 'form-data'
 import { Field } from '../models/bitwarden/Field'
 import { ItemLogin } from '../models/bitwarden/ItemLogin'
+import { Attachment } from '../models/attachment'
+import { PasswordEntry } from '../models/password.entry'
 
 /**
  * The migration API that migrates a keepass database to bitwarden
@@ -27,27 +28,52 @@ export class Migration {
    */
   private _bitwarden: Bitwarden
 
-  constructor(organizationId: string, keepass: Keepass, bitwarden: Bitwarden) {
+  /**
+   * A list of PathRewrite to apply to collections
+   * @private
+   */
+  private _pathRewrites: Array<PathRewrite>
+
+  constructor(organizationId: string, keepass: Keepass, bitwarden: Bitwarden, pathRewrites: Array<PathRewrite> = []) {
     this._organizationId = organizationId
     this._keepass = keepass
     this._bitwarden = bitwarden
+    this._pathRewrites = pathRewrites
   }
 
   /**
    * Migrate the keepass database to bitwarden
    */
   public async migrate() {
-    const passwords = await this._keepass.getPasswords()
+    const passwords = this.migrateCollectionPaths(await this._keepass.getPasswords())
+    await this._bitwarden.sync()
     const collectionPaths = [...new Set(passwords.map((entry) => entry.collectionName).sort())]
     const collectionMap = await this._bitwarden.createCollections(this._organizationId, collectionPaths)
     for (const password of passwords) {
       const bwPassword = this.convertToBitwarden(this._organizationId, collectionMap.get(password.collectionName), password.entry)
+      if (bwPassword.name === '') {
+        continue
+      }
       const itemId = await this._bitwarden.createItem(bwPassword)
       const attachments = this.getAttachments(password.entry)
       for (const attachment of attachments) {
         await this._bitwarden.addAttachment(itemId, attachment)
       }
     }
+    await this._bitwarden.sync()
+  }
+
+  /**
+   * Migrate the collection paths in passwords by applying path rewrites
+   * @param passwords the passwords to change
+   */
+  public migrateCollectionPaths(passwords: Array<PasswordEntry>): Array<PasswordEntry> {
+    return passwords.map((entry) => {
+      for (const pathRewrite of this._pathRewrites) {
+        entry.collectionName = entry.collectionName.replace(pathRewrite.regex, pathRewrite.replace)
+      }
+      return entry
+    })
   }
 
   /**
@@ -60,7 +86,7 @@ export class Migration {
   public convertToBitwarden(organizationId: string, collectionId: string, password: KdbxEntry): ItemTemplate {
     const returnItem = new ItemTemplate()
     returnItem.organizationId = organizationId
-    returnItem.collectionId = [collectionId]
+    returnItem.collectionIds = [collectionId]
     returnItem.login = new ItemLogin()
     returnItem.fields = []
     returnItem.name = this._getText(password.fields.get('Title'))
@@ -76,10 +102,10 @@ export class Migration {
       returnItem.login.totp = totp
     }
 
-    if (password.fields.has('URL')) {
+    if (password.fields.has('URL') && this._getText(password.fields.get('URL')) !== '') {
       const uri = new Uri()
       uri.uri = this._getText(password.fields.get('URL'))
-      uri.match = '0'
+      uri.match = 0
       returnItem.login.uris = [uri]
     }
 
@@ -94,10 +120,10 @@ export class Migration {
         const value = password.fields.get(fieldName)
         if (typeof value == 'string') {
           field.value = value
-          field.type = '0'
+          field.type = 0
         } else {
           field.value = value.getText()
-          field.type = '1'
+          field.type = 1
         }
         returnItem.fields.push(field)
       }
@@ -111,21 +137,21 @@ export class Migration {
    * @param password The keeepass entry
    * @return An array of FormData attachment binaries
    */
-  public getAttachments(password: KdbxEntry): Array<FormData> {
-    const attachments = []
-    for (let binary of password.binaries.values()) {
-      if ('hash' in binary) {
-        binary = (binary as KdbxBinaryWithHash).value
+  public getAttachments(password: KdbxEntry): Array<Attachment> {
+    const attachments: Array<Attachment> = []
+    password.binaries.forEach((attachmentValue, filename) => {
+      let binary
+      if ('hash' in attachmentValue) {
+        binary = (attachmentValue as KdbxBinaryWithHash).value
+      } else if ('value' in attachmentValue) {
+        binary = (attachmentValue as ProtectedValue).getBinary()
       }
 
-      if ('value' in binary) {
-        binary = (binary as ProtectedValue).getBinary()
-      }
-
-      const attachment = new FormData.default()
-      attachment.append('file', Buffer.from(binary))
-      attachments.push(attachment)
-    }
+      attachments.push({
+        filename: filename,
+        binary: Buffer.from(binary),
+      })
+    })
 
     return attachments
   }

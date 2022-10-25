@@ -4,4 +4,4 @@ export class Field {
   'type'?: FieldTypeEnum
 }
 
-export type FieldTypeEnum = '0' | '1' | '2' | '3'
+export type FieldTypeEnum = 0 | 1 | 2 | 3

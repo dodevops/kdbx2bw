@@ -1,6 +1,5 @@
 import { Bitwarden } from '../lib/api/bitwarden'
 import { expect } from 'chai'
-import * as FormData from 'form-data'
 import { mockCollections, mockCreateItem, setupMock } from './mocks'
 
 describe('The bitwarden API', () => {
@@ -81,11 +80,12 @@ describe('The bitwarden API', () => {
   })
 
   it('should add an attachment', async () => {
-    mock.onPost('/attachment?id=1234').reply(200)
+    mock.onPost('/attachment?itemid=1234').reply(200)
     const bitwarden = new Bitwarden('', 'testpassword', [], false)
-    const attachment = new FormData.default()
-    attachment.append('file', Buffer.from('test'))
-    await bitwarden.addAttachment('1234', attachment)
+    await bitwarden.addAttachment('1234', {
+      filename: 'testfile',
+      binary: Buffer.from('test'),
+    })
     expect(mock.history.post).to.have.lengthOf(1)
   })
 

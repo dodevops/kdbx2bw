@@ -3,15 +3,15 @@ import { ItemLogin } from './ItemLogin'
 
 export class ItemTemplate {
   'organizationId'?: string
-  'collectionId'?: Array<string>
+  'collectionIds'?: Array<string>
   'folderId'?: string
-  'type'?: ItemTemplateTypeEnum
+  'type': ItemTemplateTypeEnum = 1
   'name'?: string
   'notes'?: string = ''
-  'favorite'?: boolean
+  'favorite' = false
   'fields'?: Array<Field> = []
   'login'?: ItemLogin
-  'reprompt'?: boolean
+  'reprompt' = 0
 }
 
-export type ItemTemplateTypeEnum = '1' | '2' | '3' | '4'
+export type ItemTemplateTypeEnum = 1 | 2 | 3 | 4

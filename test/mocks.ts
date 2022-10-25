@@ -14,6 +14,11 @@ export function setupMock() {
     data: {},
   })
 
+  mock.onPost('/sync?force=true').reply(200, {
+    success: true,
+    data: {},
+  })
+
   return mock
 }
 
@@ -61,7 +66,7 @@ export function mockCollections(mock) {
 
 export function mockCreateItem(mock, duplicate = false) {
   const item = new ItemTemplate()
-  item.collectionId = ['123']
+  item.collectionIds = ['123']
   item.organizationId = '234'
   item.name = 'testentry'
   item.login = new ItemLogin()
@@ -69,7 +74,7 @@ export function mockCreateItem(mock, duplicate = false) {
   item.login.password = 'testpassword'
   item.login.uris = [{ uri: 'https://google.com' }]
   const field = new Field()
-  field.type = '0'
+  field.type = 0
   field.name = 'testfield'
   field.value = 'testvalue'
   item.fields = []

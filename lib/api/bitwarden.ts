@@ -1,7 +1,8 @@
 import axios from 'axios'
 import { ItemTemplate } from '../models/bitwarden/ItemTemplate'
 import { getLogger, Logger } from 'loglevel'
-import * as FormData from 'form-data'
+import { Attachment } from '../models/attachment'
+import FormData from 'form-data'
 
 /**
  * Bitwarden API abstraction. Requires a local bitwarden Vault Management API ran by `bw serve`
@@ -16,7 +17,7 @@ export class Bitwarden {
    */
   private readonly _apiBaseUrl: string
   /**
-   * The unlock password for the vault
+   * The unlock-password for the vault
    * @private
    */
   private readonly _password: string
@@ -55,8 +56,8 @@ export class Bitwarden {
   async _fetchCollections(organizationId: string) {
     this._log.debug('Fetching all collections')
     const url = `${this._apiBaseUrl}/list/object/org-collections?organizationid=${organizationId}`
+    this._log.trace(`Calling url ${url}`)
     if (this._dryrun) {
-      this._log.info(`Calling url ${url}`)
       return this._collectionMap
     }
 
@@ -72,9 +73,13 @@ export class Bitwarden {
   async unlock() {
     this._log.info('Unlocking bitwarden')
     if (!this._dryrun) {
-      await axios.post(`${this._apiBaseUrl}/unlock`, {
-        password: this._password,
-      })
+      await axios.post(
+        `${this._apiBaseUrl}/unlock`,
+        {
+          password: this._password,
+        },
+        { headers: { 'Content-Type': 'application/json' } }
+      )
     }
   }
 
@@ -104,11 +109,11 @@ export class Bitwarden {
         }),
       }
       const url = `${this._apiBaseUrl}/object/org-collection?organizationid=${organizationId}`
+      this._log.trace(`Calling ${url} with this data: \n ${JSON.stringify(data)}`)
       if (this._dryrun) {
-        this._log.info(`Would call ${url} with this data: \n ${JSON.stringify(data)}`)
         return ''
       }
-      const response = await axios.post(url, data)
+      const response = await axios.post(url, data, { headers: { 'Content-Type': 'application/json' } })
       this._collectionMap.set(response.data['data']['name'], response.data['data']['id'])
     }
 
@@ -138,16 +143,20 @@ export class Bitwarden {
    * @return the found items
    */
   async findItem(organizationId: string, collectionId: string, search: string): Promise<Array<Map<string, string>>> {
-    if (this._dryrun) {
-      return []
-    }
-    const response = await axios.get(`${this._apiBaseUrl}/list/object/items`, {
+    const url = `${this._apiBaseUrl}/list/object/items`
+    const config = {
       params: {
         organizationid: organizationId,
         collectionid: collectionId,
         search: search,
       },
-    })
+    }
+    if (this._dryrun) {
+      this._log.trace(`Would call ${url} with config ${JSON.stringify(config)}`)
+      return []
+    }
+    this._log.trace(`Calling ${url} with config ${JSON.stringify(config)}`)
+    const response = await axios.get(url, config)
     return response.data['data']['data']
   }
 
@@ -158,20 +167,24 @@ export class Bitwarden {
    */
   async createItem(itemTemplate: ItemTemplate): Promise<string> {
     this._log.info(`Creating item ${itemTemplate.name}`)
-    if (this._dryrun) {
-      return ''
-    }
-    for (const collectionId in itemTemplate.collectionId) {
+    for (const collectionId in itemTemplate.collectionIds) {
       this._log.debug(`Searching, if item ${itemTemplate.name} already exists in ${collectionId}@${itemTemplate.organizationId}`)
       const existingItems = await this.findItem(itemTemplate.organizationId, collectionId, itemTemplate.name)
       for (const item of existingItems) {
         if (item['name'] === itemTemplate.name) {
           this._log.warn(`Already found entry ${itemTemplate.name}. Recreating it...`)
-          await this.deleteItem(item['id'])
+          if (!this._dryrun) {
+            await this.deleteItem(item['id'])
+          }
         }
       }
     }
-    const createResponse = await axios.post(`${this._apiBaseUrl}/object/item`, itemTemplate)
+    const url = `${this._apiBaseUrl}/object/item`
+    this._log.trace(`Calling ${url} with template ${JSON.stringify(itemTemplate)}`)
+    if (this._dryrun) {
+      return ''
+    }
+    const createResponse = await axios.post(url, itemTemplate, { headers: { 'Content-Type': 'application/json' } })
     return createResponse.data['data']['id']
   }
 
@@ -189,12 +202,24 @@ export class Bitwarden {
   /**
    * Add an attachment to an item
    * @param itemId the id of the item to add the attachment to
-   * @param attachmentData the binary data in a FormData (field: file) object
+   * @param attachmentData the binary data in
    */
-  async addAttachment(itemId: string, attachmentData: FormData) {
+  async addAttachment(itemId: string, attachmentData: Attachment) {
     this._log.info(`Adding attachment to item ${itemId}`)
     if (!this._dryrun) {
-      await axios.post(`${this._apiBaseUrl}/attachment?id=${itemId}`, attachmentData.getBuffer(), attachmentData.getHeaders())
+      const form = new FormData()
+      form.append('file', attachmentData.binary, attachmentData.filename)
+      await axios.postForm(`${this._apiBaseUrl}/attachment?itemid=${itemId}`, form)
+    }
+  }
+
+  /**
+   * Syncs the vault
+   */
+  async sync() {
+    this._log.info('Syncing vault')
+    if (!this._dryrun) {
+      await axios.post(`${this._apiBaseUrl}/sync?force=true`)
     }
   }
 }
