@@ -157,7 +157,7 @@ export class Bitwarden {
     }
     this._log.trace(`Calling ${url} with config ${JSON.stringify(config)}`)
     const response = await axios.get(url, config)
-    return response.data['data']['data']
+    return response.data['data']['data'].filter((item) => item.organizationId === organizationId && collectionId in item.collectionIds)
   }
 
   /**
@@ -167,8 +167,10 @@ export class Bitwarden {
    */
   async createItem(itemTemplate: ItemTemplate): Promise<string> {
     this._log.info(`Creating item ${itemTemplate.name}`)
-    for (const collectionId in itemTemplate.collectionIds) {
-      this._log.debug(`Searching, if item ${itemTemplate.name} already exists in ${collectionId}@${itemTemplate.organizationId}`)
+    for (const collectionId of itemTemplate.collectionIds) {
+      this._log.debug(
+        `Searching, if item ${itemTemplate.name} already exists in ${collectionId}@${itemTemplate.organizationId}/${collectionId}`
+      )
       const existingItems = await this.findItem(itemTemplate.organizationId, collectionId, itemTemplate.name)
       for (const item of existingItems) {
         if (item['name'] === itemTemplate.name) {
